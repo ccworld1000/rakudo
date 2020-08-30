@@ -32,21 +32,13 @@ role Perl6::Metamodel::Mixins {
             @roles[$i] := nqp::decont(@roles[$i]);
             ++$i;
         }
-        # XXX Workaround for mixing in to non-composed types; when this takes
-        # place (a bunch during CORE.setting) the mixin is missing bits. This
-        # has long been a problem, and needs a real solution (it's related to
-        # the "augment does not convey additions to subclasses" issue); mixin
-        # caching just makes the problem very visible. For now, don't cache if
-        # the current type is not yet composed.
-        my $mixin_type := self.is_composed($obj)
-            ?? nqp::parameterizetype($!mixin_cache, @roles)
-            !! self.generate_mixin($obj, @roles);
+        my $mixin_type := nqp::parameterizetype($!mixin_cache, @roles);
 
         # Ensure there's a mixin attribute, if we need it.
         if $need-mixin-attribute {
             my $found := $mixin_type.HOW.mixin_attribute($mixin_type);
             unless $found {
-                my %ex := nqp::gethllsym('perl6', 'P6EX');
+                my %ex := nqp::gethllsym('Raku', 'P6EX');
                 if !nqp::isnull(%ex) && nqp::existskey(%ex, 'X::Role::Initialization') {
                     nqp::atkey(%ex, 'X::Role::Initialization')(@roles[0]);
                 }
@@ -81,7 +73,9 @@ role Perl6::Metamodel::Mixins {
 
         # Create new type, derive it from ourself and then add
         # all the roles we're mixing it.
-        my $new_type := self.new_type(:name($new_name), :repr($obj.REPR));
+        my $new_type := self.new_type(:name($new_name), :repr($obj.REPR), :is_mixin);
+        $new_type.HOW.set_language_revision($new_type, $obj.HOW.language-revision($obj))
+            if $obj.HOW.is_composed($obj);
         $new_type.HOW.set_is_mixin($new_type);
         $new_type.HOW.add_parent($new_type, $obj.WHAT);
         for @roles {
@@ -101,7 +95,7 @@ role Perl6::Metamodel::Mixins {
         # if there is one.
         my $found;
         for $new_type.HOW.attributes($new_type, :local) {
-            if $_.has_accessor {
+            if $_.is_built {
                 if $found {
                     $found := NQPMu;
                     last;
@@ -124,3 +118,5 @@ role Perl6::Metamodel::Mixins {
         }
     }
 }
+
+# vim: expandtab sw=4

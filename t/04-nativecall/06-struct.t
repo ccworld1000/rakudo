@@ -177,7 +177,7 @@ is $sis.i, 42, 'and the int after is 42';
 is $sis.a.first, 101, 'nested first is 101';
 is $sis.a.second, 77, 'nested second is 77';
 
-# RT #126675
+# https://github.com/Raku/old-issue-tracker/issues/4763
 {
     class A is repr<CStruct> { has int8 $.a };
     class B is repr<CStruct> { has int8 $.b };
@@ -205,4 +205,4 @@ is $iais2.b[1], 333, 'Can inline fixed sizes array (4)';
 is $iais2.b[2], 444, 'Can inline fixed sizes array (5)';
 is $iais2.c,    555, 'Can inline fixed sizes array (6)';
 
-# vim:ft=perl6
+# vim: expandtab shiftwidth=4

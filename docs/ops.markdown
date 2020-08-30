@@ -15,11 +15,15 @@
     - [p6capturelexwhere](#p6capturelexwhere)
     - [p6captureouters2](#p6captureouters2)
     - [p6clearpre](#p6clearpre)
+    - [p6clientcorectx](#p6clientcorectx)
+    - [p6clientcorerev](#p6clientcorerev)
+    - [p6clientcorever](#p6clientcorever)
+    - [p6clientctx](#p6clientctx)
     - [p6configposbindfailover](#p6configposbindfailover)
-    - [p6decodelocaltime](#p6decodelocaltime)
     - [p6decontrv](#p6decontrv)
     - [p6definite](#p6definite)
     - [p6finddispatcher](#p6finddispatcher)
+    - [p6getlexclient](#p6getlexclient)
     - [p6getouterctx](#p6getouterctx)
     - [p6init](#p6init)
     - [p6inpre](#p6inpre)
@@ -78,27 +82,27 @@ This desugars to:
 ## p6bool
 * p6bool(Mu $value)
 
-Create a Perl 6 Bool from $value.
+Create a Raku Bool from $value.
 
 ## p6box_i
 * p6box_i(int $value)
 
-Box a native int into a Perl 6 Int.
+Box a native int into a Raku Int.
 
 ## p6box_n
 * p6box_n(num $value)
 
-Box a native num into a Perl 6 Num.
+Box a native num into a Raku Num.
 
 ## p6box_s
 * p6box_s(str $value)
 
-Box a native str into a Perl 6 Str.
+Box a native str into a Raku Str.
 
 ## p6box_u
 * p6box_u(uint $value)
 
-Box a native uint into a Perl 6 UInt.
+Box a native uint into a Raku UInt.
 
 ## p6capturelex
 * p6capturelex(Mu $closure)
@@ -117,15 +121,32 @@ Must be called in the immediate outer scope of the block in question.
 
 Clears the "pre" flag in the current frame.
 
+## p6clientcorectx
+* p6clientcorectx()
+
+Returns the CORE context of our client. See [p6clientctx](#p6clientctx).
+
+Note that this returns exactly CORE, not setting, context.
+
+## p6clientcorerev
+* p6clientcorerev()
+
+Returns client's language revision letter. See [p6clientcorectx](#p6clientcorectx).
+
+## p6clientcorever
+* p6clientcorerev()
+
+Returns client's language version (`6.<rev>`). See [p6clientcorectx](#p6clientcorectx).
+
+## p6clientctx
+* p6clientctx()
+
+Returns client's, i.e. the first Raku caller from different package, context.
+
 ## p6configposbindfailover
 * p6configposbindfailover(Mu $type, Mu $failover-type)
 
 Configures the Binder to allow $failover-type to bind to $type in subroutine invocation.
-
-## p6decodelocaltime
-* p6decodelocaltime(int $epoch)
-
-Decodes the unix timestamp $epoch into a native int array with six fields containing second, minute, hour, day, month, year in that order.
 
 ## p6decontrv
 * p6decontrv(Mu $type, Mu $value)
@@ -136,13 +157,19 @@ Decodes the unix timestamp $epoch into a native int array with six fields contai
 ## p6finddispatcher
 * p6finddispatcher(str $value)
 
+## p6getlexclient
+* p6getlexclient(str $symbol, int $setting-only)
+
+Takes a name and finds corresponding symbol in lexical scope of [p6clientctx](#p6clientctx). If `$setting-only` is set
+to a _true_ value then lookup is performed only in client's SETTING.
+
 ## p6getouterctx
 * p6getouterctx(Mu $closure)
 
 ## p6init
 * p6init()
 
-Initializes the GlobalContext extensions for Perl 6.
+Initializes the GlobalContext extensions for Raku.
 
 ## p6inpre
 * p6inpre()

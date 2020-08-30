@@ -1,11 +1,9 @@
 role Perl6::ModuleLoaderVMConfig {
     method vm_search_paths() {
         my @search_paths;
-        @search_paths.push(nqp::backendconfig<libdir> ~ '/perl6/lib');
+        @search_paths.push(nqp::gethllsym('default', 'SysConfig').rakudo-home() ~ '/lib');
         # XXX CHEAT: Goes away when we implement :from<nqp>.
-        @search_paths.push(nqp::backendconfig<libdir> ~ '/nqp/lib');
-        # Keep share dir, moarvm has some files there
-        @search_paths.push(nqp::backendconfig<prefix> ~ '/share/nqp/lib');
+        @search_paths.push(nqp::gethllsym('default', 'SysConfig').nqp-home() ~ '/lib');
         @search_paths
     }
     
@@ -14,7 +12,7 @@ role Perl6::ModuleLoaderVMConfig {
         my $path := "$setting_name.setting.moarvm";
         my @prefixes := self.search_path();
         for @prefixes -> $prefix {
-            $prefix := nqp::gethllsym('perl6', 'ModuleLoader').absolute_path(~$prefix);
+            $prefix := nqp::gethllsym('Raku', 'ModuleLoader').absolute_path(~$prefix);
             if nqp::stat("$prefix/$path", 0) {
                 $path := "$prefix/$path";
                 last;
@@ -27,3 +25,5 @@ role Perl6::ModuleLoaderVMConfig {
         '.moarvm'
     }
 }
+
+# vim: expandtab sw=4

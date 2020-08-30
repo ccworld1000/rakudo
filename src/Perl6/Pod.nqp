@@ -186,29 +186,8 @@ class Perl6::Pod {
         return $config;
     }
 
-    our sub make-para($s) {
-        # TODO
-        # This is planned to be used to turn strings into paras, including
-        # chunks of formatting code (fc). Currently, there are strings that
-        # have fc that have not been properly turned into compiled fc
-        # blocks inside para contents. Some examples include table cells
-        # and defn block terms and definitions.
-        #
-        # NOTE This could be done in the grammar if we can untangle the
-        #      first line of pod contents to treat as a separate
-        #      entity and then recombine t with its original para string
-        #      or make it the term for a defn block.
-        #      However, this would still be needed for properly
-        #      handling fc in table cells!
-        =begin comment
-        my @contents := pod_strings_from_matches(nqp::list($s));
-        @contents    := serialize_array(@contents).compile_time_value;
-        return serialize_object('Pod::Block::Para', :@contents).compile_time_value;
-        =end comment
-    }
-
     our sub defn($/, $blocktype) {
-        # produces a Perl 6 instance of Pod::Defn
+        # produces a Raku instance of Pod::Defn
 
         my $config := add-numbered-to-config($/);
 
@@ -216,7 +195,7 @@ class Perl6::Pod {
         die("FATAL: the incoming object is NOT a =defn block, type: $type")
             if $type !~~ /^defn/;
 
-        # the final Perl 6 type
+        # the final Raku type
         my $p6type := 'Pod::Defn';
 
         # Get all content lines.  The first line is the term for all
@@ -232,10 +211,6 @@ class Perl6::Pod {
         }
 
         my $term := @children.shift;
-        =begin comment
-        # TODO for future change
-        $term := make-para($term);
-        =end comment
 
         # The remaining @children array should have lines of text with
         # an empty line being a paragraph separator. Combine
@@ -266,10 +241,6 @@ class Perl6::Pod {
             my @contents := nqp::list($para);
             @contents    := serialize_array(@contents).compile_time_value;
             my $obj := serialize_object('Pod::Block::Para', :@contents).compile_time_value;
-            =begin comment
-            # TODO for future change
-            my $obj := make-para($para);
-            =end comment
             @pcontents.push($obj);
         }
         my $contents := serialize_array(@pcontents).compile_time_value;
@@ -376,7 +347,7 @@ class Perl6::Pod {
 
     sub string_to_bigint($src, int $base, int $chars) {
         # code copied from Actions.nqp and locally modified
-        my $res := nqp::radix_I($base, ~$src, 0, 2, $*W.find_symbol(['Int']));
+        my $res := nqp::radix_I($base, ~$src, 0, 2, $*W.find_single_symbol('Int'));
         $src.panic("'$src' is not a valid number")
             unless nqp::iseq_i(nqp::unbox_i(nqp::atpos($res, 2)), $chars);
         nqp::atpos($res, 0);
@@ -430,9 +401,9 @@ class Perl6::Pod {
                      :$Delimiter?,
                      :$keep?,
                     ) {
-        # Based on the 'parse_line' function in CPAN Perl 5 module
-        # Text::ParseString, but with many changes due to Perl 6 and
-        # nqp differences from Perl 5.
+        # Based on the 'parse_line' function in CPAN Perl module
+        # Text::ParseString, but with many changes due to Raku and
+        # nqp differences from Perl.
 
         # Options:
         #   $hash      - set true for a hash (default: array)
@@ -487,7 +458,7 @@ class Perl6::Pod {
             $line := subst($line, $regex, '');
             say("DEBUG pass $pass, postmatch:\n  \$line    = |$line|") if $debugp;
 
-            # As opposed to the Perl 5 version, only two match vars are recognized:
+            # As opposed to the Perl version, only two match vars are recognized:
             # $m[0] and $m[1].
             my $quote    := $m[0];
             my $quoted   := $m[1];
@@ -515,7 +486,7 @@ class Perl6::Pod {
                 $quoted   := nqp::null();
             }
 
-            if nqp::chars($quoted) {
+            if nqp::chars($quote) || nqp::chars($quoted) {
                 $word := nqp::concat($word, $quoted);
             }
             elsif nqp::chars($unquoted) {
@@ -527,7 +498,7 @@ class Perl6::Pod {
                 @pieces.push($delim) if ($keep eq 'delimiters');
                 $word := '';
             }
-            if !nqp::chars($line) && nqp::chars($word) {
+            if !nqp::chars($line) && (nqp::chars($quote) || nqp::chars($word)) {
                 @pieces.push($word);
                 $word := '';
             }
@@ -555,13 +526,14 @@ class Perl6::Pod {
         # break into an array
         my @arr := string2array($st);
 
-        if nqp::elems(@arr) > 1 {
-            return serialize_object('Array', |@arr).compile_time_value;
-        }
-        else {
+        if nqp::elems(@arr) == 1 {
             # convert a single-element list to a single value
             my $val := @arr[0];
             return $val;
+        }
+        else {
+            # 0 or 2 or more elements are an array
+            return serialize_object('Array', |@arr).compile_time_value;
         }
     }
 
@@ -630,13 +602,32 @@ class Perl6::Pod {
             }
             else {
                 say("  DEBUG incoming colonpair non-circumfix val: |$colonpair|") if $debugp;
-                my $truth := !nqp::eqat($colonpair, '!', 1);
-                if 0 && $key eq 'numbered' {
-                    say("DEBUG: colonpair: :numbered truth value = '$truth'");
+                # issue #2793: should be able to use, e.g., ':nnnfoo' to represent:
+                #   foo => nnn
+                # new possibilities for non-circumfix val:
+                #   foo    === foo(True)  # Bool; prefix = ''
+                #   !foo   === foo(False) # Bool; prefix = '!'
+                #   nnnfoo === foo(nnn)   # Int;  prefix = 'nnn'
+                #
+                # colonpair = $prefix ~ $key
+                my $prefix := subst($colonpair, /$key/, '');
+                $prefix := subst($prefix, /':'/, '');
+                my $regex := /^ \d+ $/;
+
+                say("  DEBUG colonpair non-circumfix prefix: |$prefix|") if $debugp;
+                if $prefix eq '' {
+                    $val := $*W.add_constant('Bool', 'int', 1).compile_time_value;
                 }
-                say("        non-circumfix after processing: val: |$truth|")
-                    if $debugp;
-                $val := $*W.add_constant('Bool', 'int', $truth).compile_time_value;
+                elsif $prefix eq '!' {
+                    $val := $*W.add_constant('Bool', 'int', 0).compile_time_value;
+                }
+                elsif $prefix ~~ /^ \d+ $/ {
+                    $val := $*W.add_constant('Int', 'int', $prefix).compile_time_value;
+                }
+                else {
+                    nqp::die("FATAL:  Invalid key ($key) / colonpair ($colonpair) combo in pod config string");
+                }
+
             }
 
             if $key eq 'allow' {
@@ -1003,7 +994,7 @@ class Perl6::Pod {
             elsif $st.inkey {
                 if nqp::existskey(%endkeychar, $c) {
                     # we've collected the key name, check validity
-                    # look at emacs perl6 mode for ident regex
+                    # look at emacs raku mode for ident regex
                     my $rx := /<[a..zA..Z]>/;
 
                     $endchar := nqp::atkey(%endkeychar, $c);
@@ -1386,13 +1377,6 @@ class Perl6::Pod {
                 nqp::say($_) for @rows; # the original table as input
                 nqp::say("===end WARNING table $t input rows");
             }
-            =begin comment
-            elsif $warns && $show_warning {
-                    nqp::say("===WARNING: One or more tables evidence bad practice.");
-                    nqp::say("==          Set environment variable 'RAKUDO_POD_TABLE_DEBUG' for more details.");
-                    $show_warning := 0;
-            }
-            =end comment
         }
 
         sub normalize_vis_col_sep_rows(@Rows) {
@@ -1697,4 +1681,4 @@ class Perl6::Pod {
 
 } # end class Perl6::Pod
 
-# vim: ft=perl6
+# vim: expandtab sw=4
