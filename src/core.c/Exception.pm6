@@ -153,9 +153,9 @@ my class X::Method::NotFound is Exception {
     has $.typename;
     has Bool $.private;
     has $.addendum;
-    has $.message is built(False);
-    has @.suggestions is built(False);
-    has @.tips is built(False);
+    has @!suggestions;
+    has @!tips;
+    has $!message;
 
     # This attribute is an implementation detail. Not to be documented.
     has $.in-class-call;
@@ -166,7 +166,17 @@ my class X::Method::NotFound is Exception {
           !! "of type '$.typename'"
     }
 
-    method TWEAK() {
+    method message() { $!message // self!create-message }
+    method suggestions() {
+        self!create-message unless $!message;
+        @!suggestions
+    }
+    method tips() {
+        self!create-message unless $!message;
+        @!tips
+    }
+
+    method !create-message() {
         my @message = $.private
           ?? "No such private method '!$.method' for invocant $.of-type"
           !! "No such method '$.method' for invocant $.of-type";
@@ -3085,7 +3095,7 @@ my class X::InvalidTypeSmiley does X::Comp {
 
 my class X::MultipleTypeSmiley does X::Comp {
     method message() {
-        "Multiple type smileys cannot be used";
+        "Multiple type smileys cannot be used, did you forget a ':' somewhere?";
     }
 }
 
@@ -3192,6 +3202,7 @@ my class X::Proc::Unsuccessful is Exception {
 }
 
 class CompUnit::DependencySpecification { ... }
+class CompUnit::Repository::FileSystem { ... }
 my class X::CompUnit::UnsatisfiedDependency is Exception {
     has CompUnit::DependencySpecification $.specification;
 
@@ -3207,6 +3218,10 @@ my class X::CompUnit::UnsatisfiedDependency is Exception {
             and not nqp::istype(nqp::how($ns{$last}), Metamodel::PackageHOW)
     }
 
+    method !is-missing-from-meta-file() {
+        $*REPO.isa(CompUnit::Repository::FileSystem) and $*REPO.prefix.add("META6.json").e
+    }
+
     method message() {
         my $name = $.specification.short-name;
         is-core($name)
@@ -3216,7 +3231,12 @@ my class X::CompUnit::UnsatisfiedDependency is Exception {
                 ~ ($.specification ~~ / $<name>=.+ '::from' $ /
                     ?? "\n\nIf you meant to use the :from adverb, use"
                         ~ " a single colon for it: $<name>:from<...>\n"
-                    !! ''
+                    !! self!is-missing-from-meta-file
+                        ?? "\n\nPlease note that a 'META6.json' file was found in '$*REPO.prefix.relative()',"
+                            ~ " of which the 'provides' section was used to determine if a dependency is available"
+                            ~ " or not.  Perhaps you need to add '$!specification' in the <provides> section of"
+                            ~ " that file?  Or need to specify a directory that does *not* have a 'META6.json' file?"
+                        !! ''
                 )
     }
 }
